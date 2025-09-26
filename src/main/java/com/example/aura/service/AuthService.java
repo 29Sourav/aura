@@ -1,14 +1,15 @@
 package com.example.aura.service;
 
-
 import com.example.aura.model.LoginRequest;
 import com.example.aura.model.RegisterRequest;
-import com.example.aura.model.User;
 import com.example.aura.util.JwtUtil;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import java.util.*;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.http.*;
+
+import java.util.HashMap;
+import java.util.Map;
 
 @Service
 public class AuthService {
@@ -19,67 +20,36 @@ public class AuthService {
     @Autowired
     private JwtUtil jwtUtil;
 
-    @Autowired
-    private PasswordEncoder passwordEncoder;
+    private final String FIREBASE_API_KEY = "AIzaSyDp2W8xQc-cB8jQArF_l1gON8rLEt8yMzc";
 
-    public String register(RegisterRequest request) {
-        try {
-            System.out.println("👤 Starting registration for: " + request.getEmail());
-
-            // Check if user already exists
-            User existingUser = firebaseService.getUserByEmail(request.getEmail());
-            if (existingUser != null) {
-                System.out.println(" User already exists: " + request.getEmail());
-                throw new RuntimeException("User already exists");
-            }
-
-            // Create new user
-            String userId = UUID.randomUUID().toString();
-            User user = new User();
-            user.setUserId(userId);
-            user.setEmail(request.getEmail());
-            user.setPassword(passwordEncoder.encode(request.getPassword()));
-            user.setName(request.getName());
-            user.setFriendIds(new ArrayList<>());
-            user.setCreatedAt(new Date());
-            user.setUpdatedAt(new Date());
-
-            System.out.println(" Saving user to database...");
-            firebaseService.saveUser(user);
-
-            String token = jwtUtil.generateToken(user.getEmail());
-            System.out.println(" Registration successful for: " + request.getEmail());
-            return token;
-
-        } catch (Exception e) {
-            System.err.println(" Registration failed: " + e.getMessage());
-            throw new RuntimeException("Registration failed: " + e.getMessage());
-        }
+    public void register(RegisterRequest request) throws Exception {
+        var userRecord = firebaseService.createUser(request.getEmail(), request.getPassword());
+        firebaseService.createUserProfile(userRecord.getUid(), request.getEmail());
     }
 
-    public String login(LoginRequest request) {
-        try {
-            System.out.println("🔐 Attempting login for: " + request.getEmail());
+    public String login(LoginRequest request) throws Exception {
+        RestTemplate restTemplate = new RestTemplate();
+        String url = "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=" + FIREBASE_API_KEY;
 
-            User user = firebaseService.getUserByEmail(request.getEmail());
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("email", request.getEmail());
+        payload.put("password", request.getPassword());
+        payload.put("returnSecureToken", true);
 
-            if (user == null) {
-                System.out.println(" User not found: " + request.getEmail());
-                throw new RuntimeException("Invalid credentials");
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(payload, headers);
+
+        ResponseEntity<Map> response = restTemplate.postForEntity(url, entity, Map.class);
+
+        if (response.getStatusCode() == HttpStatus.OK) {
+            String idToken = (String) response.getBody().get("idToken");
+
+            if (firebaseService.verifyIdToken(idToken)) {
+                return jwtUtil.generateToken(request.getEmail());
             }
-
-            if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-                System.out.println(" Password mismatch for: " + request.getEmail());
-                throw new RuntimeException("Invalid credentials");
-            }
-
-            String token = jwtUtil.generateToken(user.getEmail());
-            System.out.println("Login successful for: " + request.getEmail());
-            return token;
-
-        } catch (Exception e) {
-            System.err.println(" Login failed: " + e.getMessage());
-            throw new RuntimeException("Login failed: " + e.getMessage());
         }
+        throw new Exception("Invalid credentials");
     }
 }

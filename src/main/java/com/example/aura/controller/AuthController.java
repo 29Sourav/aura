@@ -1,50 +1,55 @@
 package com.example.aura.controller;
 
-
-
 import com.example.aura.model.LoginRequest;
 import com.example.aura.model.RegisterRequest;
 import com.example.aura.service.AuthService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
-import java.util.HashMap;
-import java.util.Map;
 
-@RestController
-@RequestMapping("/api/auth")
+@Controller
 public class AuthController {
 
     @Autowired
     private AuthService authService;
 
-    @PostMapping("/register")
-    public ResponseEntity<?> register(@RequestBody RegisterRequest request) {
-        try {
-            String token = authService.register(request);
-            Map<String, String> response = new HashMap<>();
-            response.put("token", token);
-            response.put("message", "User registered successfully");
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            Map<String, String> error = new HashMap<>();
-            error.put("error", e.getMessage());
-            return ResponseEntity.badRequest().body(error);
-        }
+    @GetMapping("/login")
+    public String loginPage() {
+        return "login";
     }
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody LoginRequest request) {
+    public String login(@ModelAttribute LoginRequest request, Model model) {
         try {
             String token = authService.login(request);
-            Map<String, String> response = new HashMap<>();
-            response.put("token", token);
-            response.put("message", "Login successful");
-            return ResponseEntity.ok(response);
+            model.addAttribute("userEmail", request.getEmail());
+            return "redirect:/dashboard";
         } catch (Exception e) {
-            Map<String, String> error = new HashMap<>();
-            error.put("error", e.getMessage());
-            return ResponseEntity.badRequest().body(error);
+            model.addAttribute("error", e.getMessage());
+            return "login";
         }
+    }
+
+    @GetMapping("/register")
+    public String registerPage() {
+        return "register";
+    }
+
+    @PostMapping("/register")
+    public String register(@ModelAttribute RegisterRequest request, Model model) {
+        try {
+            authService.register(request);
+            return "redirect:/login";
+        } catch (Exception e) {
+            model.addAttribute("error", e.getMessage());
+            return "register";
+        }
+    }
+
+    @GetMapping("/dashboard")
+    public String dashboard(Model model) {
+        model.addAttribute("userEmail", "test@example.com"); // temp placeholder
+        return "dashboard";
     }
 }
