@@ -20,7 +20,7 @@ public class AuthService {
     @Autowired
     private JwtUtil jwtUtil;
 
-    private final String FIREBASE_API_KEY = "AIzaSyDp2W8xQc-cB8jQArF_l1gON8rLEt8yMzc";
+    private final String FIREBASE_API_KEY = "";
 
     public void register(RegisterRequest request) throws Exception {
         var userRecord = firebaseService.createUser(request.getEmail(), request.getPassword());
